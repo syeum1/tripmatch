@@ -27,3 +27,9 @@ Real USC SSO still needs USC registration/approval and backend SSO configuration
 TypeScript and production build pass. 27 automated tests include an actual PGlite PostgreSQL run of all migrations: first acceptance stays locked, duplicate acceptance stays locked, second acceptance opens access, outsiders/null actors/unverified users are rejected, and closing a plan revokes chat. Additional checks cover public-response privacy, editable budgets/focus, profile constraints, maps URLs and weekend/year-boundary dates.
 
 Browser checked typed Tokyo destination and image, custom dates, clearing zero/0200 → 200, location-sensitive tags, immediate device-only save, anonymous ranked samples, locked chat before acceptance and sample chat after confirmation. Two real accounts on the cloud backend remain untested until the owner completes the configuration above.
+
+## Personal Vercel deployment
+
+Deploy the separate private repository `syeum1/tripmatch`, branch `main`, into Steven’s own Vercel account/project. Do not import Thomas’s repository or reuse his Vercel project. `vercel.json` uses npm installation and the production build command. The Vite config selects Nitro’s Vercel preset only in Vercel builds; the existing Lovable build target remains unchanged. Server routes are emitted in `.vercel/output` alongside static assets.
+
+The prototype runs in device-local/sample mode without server storage keys. Public client Supabase values already exist in the repository’s tracked `.env`; no service-role key is included. Enabling shared storage or real chat requires the backend setup above.
