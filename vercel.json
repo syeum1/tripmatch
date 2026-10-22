@@ -2,5 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "framework": null,
-  "installCommand": "npm install --no-audit --no-fund"
+  "installCommand": "npx --yes pnpm@11.25.0 install --frozen-lockfile --ignore-scripts"
 }

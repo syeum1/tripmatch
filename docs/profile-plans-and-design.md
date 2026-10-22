@@ -30,6 +30,6 @@ Browser checked typed Tokyo destination and image, custom dates, clearing zero/0
 
 ## Personal Vercel deployment
 
-Deploy the separate private repository `syeum1/tripmatch`, branch `main`, into Steven’s own Vercel account/project. Do not import Thomas’s repository or reuse his Vercel project. `vercel.json` uses npm installation and the production build command. The Vite config selects Nitro’s Vercel preset only in Vercel builds; the existing Lovable build target remains unchanged. Server routes are emitted in `.vercel/output` alongside static assets.
+Deploy the separate private repository `syeum1/tripmatch`, branch `main`, into Steven’s own Vercel account/project. Do not import Thomas’s repository or reuse his Vercel project. `vercel.json` installs the pinned pnpm version with the committed lockfile and uses the production build command. Dependency install scripts are disabled; the build uses the installed platform binaries. The Vite config selects Nitro’s Vercel preset only in Vercel builds; the existing Lovable build target remains unchanged. Server routes are emitted in `.vercel/output` alongside static assets.
 
 The prototype runs in device-local/sample mode without server storage keys. Public client Supabase values already exist in the repository’s tracked `.env`; no service-role key is included. Enabling shared storage or real chat requires the backend setup above.
