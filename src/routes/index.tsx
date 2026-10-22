@@ -4,10 +4,9 @@ import { PlanGallery } from "@/components/trip/PlanGallery";
 import { MyPlans } from "@/components/trip/MyPlans";
 import { BudgetFields } from "@/components/trip/BudgetFields";
 import { DestinationPicker } from "@/components/trip/DestinationPicker";
-import { DestinationImage } from "@/components/trip/DestinationImage";
 import { QuestionScreen } from "@/components/trip/QuestionScreen";
 import { DEFAULT_DETAILS, detailsSchema, moneyValue, TRIP_ITEMS, type TravelerDetails } from "@/lib/traveler";
-import { anonymousProfile, sampleProfiles } from "@/lib/public-plans";
+import { discoveryProfile, sampleProfiles } from "@/lib/public-plans";
 import { mergeRules, rankMatches, buildItinerary } from "@/lib/matching";
 import { clearLocalTraveler, saveDemoTrip } from "@/lib/local-demo";
 import { GroupPersonality } from "@/components/trip/Personality";
@@ -17,7 +16,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { Chip, GhostButton, Option, PrimaryButton, Screen } from "@/components/trip/ui";
 import { SignInScreen } from "@/components/trip/SignInScreen";
-import { isUscEmail, uscSsoEnabled } from "@/lib/sign-in";
+import { isUscEmail, isTravelerName, uscSsoEnabled } from "@/lib/sign-in";
 import { supabase } from "@/integrations/supabase/client";
 import type { Match } from "@/lib/matching";
 import { decide, getMatches, proposeMerge, saveProfile, clearProfileSession } from "@/lib/trip.functions";
@@ -55,6 +54,7 @@ function App() {
 
   const [step, setStep] = useState<Step>("signin");
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [mbti, setMbti] = useState<Mbti | null>(null);
   const [details, setDetails] = useState<TravelerDetails>({ ...DEFAULT_DETAILS });
   const [budgetMin, setBudgetMin] = useState("");
@@ -88,6 +88,8 @@ function App() {
       const saved = JSON.parse(localStorage.getItem("tm_saved_profile") ?? "null");
       if (saved?.id && saved.email === localStorage.getItem("tm_email")) { setSavedProfile(saved); setProfileId(saved.id); }
     } catch { /* Ignore incomplete drafts from an earlier app version. */ }
+    const savedName = localStorage.getItem("tm_name") ?? "";
+    if (isTravelerName(savedName)) setName(savedName);
     const savedMbti = localStorage.getItem("tm_mbti");
     if (isMbti(savedMbti)) setMbti(savedMbti);
     // A stored email alone never counts as an authenticated SSO session.
@@ -100,7 +102,7 @@ function App() {
         if (!sessionData.session && !uscSsoEnabled) {
           if (active && current === version) {
             const e = localStorage.getItem("tm_email");
-            if (e && isUscEmail(e)) { setEmail(e); setStep("entry"); }
+            if (e && isUscEmail(e)) { setEmail(e); setStep(isTravelerName(savedName) ? "entry" : "signin"); }
           }
           return;
         }
@@ -108,7 +110,7 @@ function App() {
         if (!active || current !== version) return;
         const user = data.user;
         if (!error && user?.email && user.email_confirmed_at && isUscEmail(user.email)) {
-          setEmail(user.email); setStep("entry");
+          setEmail(user.email); setStep(isTravelerName(savedName) ? "entry" : "signin");
         } else { setEmail(""); setStep("signin"); }
       } catch {
         if (active && current === version && uscSsoEnabled) setErr("Could not restore your sign-in. Please try again.");
@@ -123,6 +125,7 @@ function App() {
   }, []);
 
   async function startSso() {
+    localStorage.setItem("tm_name", name.trim());
     const { data, error } = await supabase.auth.signInWithSSO({
       domain: "usc.edu",
       options: { redirectTo: window.location.origin + "/" },
@@ -141,15 +144,12 @@ function App() {
       }
       await clearSession();
       clearLocalTraveler(); setDetails({ ...DEFAULT_DETAILS }); setSavedProfile(null); setMbti(null);
-      setEmail(""); setProfileId(null); setMatches([]); setProposal(null); setStep("signin");
+      setEmail(""); setName(""); setProfileId(null); setMatches([]); setProposal(null); setStep("signin");
     });
   }
 
   const total = 5;
-  const firstName = (() => {
-    const n = (email.split("@")[0] ?? "").split(/[._-]/)[0] ?? "";
-    return n ? n.charAt(0).toUpperCase() + n.slice(1) : "Trojan";
-  })();
+  const firstName = name.trim() || "Trojan";
 
   async function run<T>(fn: () => Promise<T>): Promise<T | undefined> {
     setBusy(true); setErr(null);
@@ -175,7 +175,7 @@ function App() {
       setSavedProfile(own); setProfileId(p.id); setMbtiNotice(!p.detailsPersisted);
       setMatches([]); setStep("matches");
       if (own.localOnly) {
-        setMatches(rankMatches(own, sampleProfiles).map((match) => ({ ...match, profile: anonymousProfile(match.profile) })));
+        setMatches(rankMatches(own, sampleProfiles).map((match) => ({ ...match, profile: discoveryProfile(match.profile) })));
       } else {
         setMatching(true);
         void fetchMatches({ data: { profileId: p.id, mbti } }).then((result) => setMatches(result.matches)).catch(() => setErr("Your plan was saved, but matches could not load. You can browse all trips or retry.")).finally(() => setMatching(false));
@@ -190,7 +190,7 @@ function App() {
       if (own.localOnly) {
         const target = sampleProfiles.find((profile) => profile.id === id);
         if (!target) throw new Error("That local sample plan is no longer available.");
-        setProposal({ proposalId: crypto.randomUUID(), merged: mergeRules(own, target, override), source: "demo", me: own, them: anonymousProfile(target) });
+        setProposal({ proposalId: crypto.randomUUID(), merged: mergeRules(own, target, override), source: "demo", me: own, them: discoveryProfile(target) });
       } else {
         const result = await propose({ data: { profileId: own.id, matchId: id, override } });
         setProposal({ ...result, me: { ...result.me, mbti, details: own.details } } as Proposal);
@@ -201,11 +201,11 @@ function App() {
 
   // ---------- Screens ----------
   if (step === "signin") {
-    return <SignInScreen email={email} onEmailChange={setEmail} ssoEnabled={uscSsoEnabled}
+    return <SignInScreen name={name} onNameChange={setName} email={email} onEmailChange={setEmail} ssoEnabled={uscSsoEnabled}
       onSso={startSso} restoring={restoring} error={err}
       onContinue={() => {
         const e = email.trim().toLowerCase();
-        setEmail(e); localStorage.setItem("tm_email", e); setStep("entry");
+        setEmail(e); setName(name.trim()); localStorage.setItem("tm_email", e); localStorage.setItem("tm_name", name.trim()); setStep("entry");
       }} />;
   }
 
@@ -219,7 +219,7 @@ function App() {
   if (step === "entry") return <Screen>
     <h1 className="text-3xl font-extrabold">Hi {firstName}</h1><p className="mt-2 text-muted-foreground">Where are you starting from?</p>
     <div className="mt-5 flex flex-wrap gap-3"><button onClick={() => setStep("profile")} className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold">Profile · {details.year}{mbti ? ` · ${mbti}` : ""}</button><button onClick={() => setStep("saved")} className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold">My plans & invitations</button></div>
-    <div className="mt-6 space-y-3"><Option onClick={() => { setMode("go"); setStep(1); }}><div className="text-lg font-bold">I want to go somewhere</div><div className="text-sm text-muted-foreground">Pick from popular trips for your break</div></Option><Option onClick={() => { setMode("plan"); setStep(1); }}><div className="text-lg font-bold">I already have a plan</div><div className="text-sm text-muted-foreground">Type destinations and check them on Google Maps</div></Option><Option onClick={() => setStep("browse")}><div className="text-lg font-bold">Explore all trips</div><div className="text-sm text-muted-foreground">Browse anonymously, with or without a saved plan</div></Option></div>
+    <div className="mt-6 space-y-3"><Option onClick={() => { setMode("go"); setStep(1); }}><div className="text-lg font-bold">I want to go somewhere</div><div className="text-sm text-muted-foreground">Pick from popular trips for your break</div></Option><Option onClick={() => { setMode("plan"); setStep(1); }}><div className="text-lg font-bold">I already have a plan</div><div className="text-sm text-muted-foreground">Type destinations and check them on Google Maps</div></Option><Option onClick={() => setStep("browse")}><div className="text-lg font-bold">Explore all trips</div><div className="text-sm text-muted-foreground">Browse classmates’ plans, with or without a saved plan</div></Option></div>
     <button className="mt-auto pt-8 text-sm text-muted-foreground underline" disabled={busy} onClick={signOut}>Not {email}? Sign out</button>{err && <p role="alert" className="mt-3 text-sm text-destructive">{err}</p>}
   </Screen>;
 
@@ -259,7 +259,6 @@ function App() {
       return (
         <QuestionScreen step={step} total={total} busy={busy} error={err} onBack={back} context={JSON.stringify({ destinations: dests, budget, vibes, mbti })} title="Pick & rank up to 3" next={() => setStep(4)} canNext={dests.length > 0}>
           <p className="-mt-3 text-sm text-muted-foreground">Tap in order of preference.</p>
-          {dests[0] && <DestinationImage destination={dests[0]} />}
           {list.map((dst) => {
             const rank = dests.indexOf(dst.name);
             return (
@@ -282,14 +281,14 @@ function App() {
 
     if (step === 3) return <QuestionScreen step={step} total={total} busy={busy} error={err} onBack={back} context="Custom trip" title="Your plan" next={() => setStep(4)} canNext={dests.length > 0 && !!custom.start && (!custom.end || custom.end >= custom.start)}>
       <DestinationPicker values={dests} onChange={setDests} />
-      {dests[0] && <DestinationImage destination={dests[0]} />}
       <div className="grid grid-cols-2 gap-3"><label className="text-sm font-semibold">Start<input type="date" value={custom.start} onInput={(event) => { const value = event.currentTarget.value; setCustom((draft) => ({ ...draft, start: value })); }} onChange={(event) => setCustom((draft) => ({ ...draft, start: event.target.value }))} className="mt-1 h-14 w-full rounded-xl border-2 border-border bg-card px-2" /></label><label className="text-sm font-semibold">End<input type="date" value={custom.end} min={custom.start} onInput={(event) => { const value = event.currentTarget.value; setCustom((draft) => ({ ...draft, end: value })); }} onChange={(event) => setCustom((draft) => ({ ...draft, end: event.target.value }))} className="mt-1 h-14 w-full rounded-xl border-2 border-border bg-card px-2" /></label></div>
     </QuestionScreen>;
     if (step === 4) return <QuestionScreen step={step} total={total} busy={busy} error={err} onBack={back} context="Trip budget" title="Budget per person" next={() => { const max = moneyValue(budgetMax)!; setBudget(max <= 300 ? "under300" : max <= 700 ? "300-700" : "700plus"); setStep(5); }} canNext={moneyValue(budgetMin) !== null && moneyValue(budgetMax) !== null && Number(budgetMax) >= Number(budgetMin)}>
       <BudgetFields min={budgetMin} max={budgetMax} onMin={setBudgetMin} onMax={setBudgetMax} />
     </QuestionScreen>;
     const outdoors = dests.some((place) => /joshua|yosemite|zion|bryce|mammoth|big bear|grand canyon|sedona/i.test(place));
-    const items = TRIP_ITEMS.filter((item) => !["Car", "Tent"].includes(item) || outdoors);
+    const international = dests.some((place) => /tokyo|cabo|cancun|cancún/i.test(place));
+    const items = TRIP_ITEMS.filter((item) => item === "Tent" ? outdoors : item === "Car" ? !international : true);
     return <QuestionScreen step={step} total={total} busy={busy} error={err} onBack={back} context={JSON.stringify({ destinations: dests })} title="What can you bring?">
       <p className="text-sm text-muted-foreground">Optional. Pick items you can share on this trip.</p>
       <div className="flex flex-wrap gap-2">{items.map((item) => { const selected = details.trip_tags.includes(item); return <button type="button" aria-pressed={selected} key={item} disabled={busy} onClick={() => setDetails({ ...details, trip_tags: selected ? details.trip_tags.filter((value) => value !== item) : [...details.trip_tags, item] })} className={`rounded-full border-2 px-4 py-2 text-sm ${selected ? "border-primary bg-secondary" : "border-border bg-card"}`}>{item}</button>; })}</div>
@@ -303,7 +302,7 @@ function App() {
     return (
       <Screen step={BREAKS.find((b) => b.id === breakId)?.label ?? ""} assistantContext={JSON.stringify({ destinations: dests, budget, vibes, mbti })}>
         <h1 className="text-3xl font-extrabold">Your matches</h1>
-        <p className="mt-1 text-muted-foreground">Ranked by how well your plans fit. Identities stay hidden until a confirmed match.</p>
+        <p className="mt-1 text-muted-foreground">Ranked by how well your plans fit. Get to know your potential travel crew.</p>
         {savedProfile?.localOnly && <p role="status" className="mt-3 rounded-xl bg-secondary p-3 text-sm">Saved on this device only. Shared storage isn’t connected; the matches below are sample trips.</p>}
         <button onClick={() => setStep("browse")} className="mt-4 text-sm font-semibold text-primary underline">Explore all trips, regardless of score</button>
         {matching && <p role="status" className="mt-4">Your plan is saved. Loading matches…</p>}
@@ -313,7 +312,6 @@ function App() {
           {!matching && matches.length === 0 && <p className="rounded-2xl bg-muted p-6 text-center text-muted-foreground">No close matches yet — try a different break or destination.</p>}
           {matches.map((m) => (
             <article key={m.profile.id} className="trip-plan-card w-full p-4 text-left">
-              <DestinationImage destination={m.profile.destinations[0] ?? "Trip"} />
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary font-display text-lg font-bold text-primary">{m.profile.first_name[0]}</div>
                 <div className="flex-1">
@@ -347,7 +345,7 @@ function App() {
         err={err}
         onBack={() => setStep("matches")}
         onAccept={() => run(async () => {
-          if (proposal.source === "demo") saveDemoTrip(proposal.proposalId, { status: "accepted", viewerId: proposal.me.id, acceptedBy: [proposal.me.id, proposal.them.id], merged: proposal.merged, travelers: [proposal.me, { ...proposal.them, first_name: "Sample traveler" }], itinerary: buildItinerary(proposal.me.break_id, proposal.merged, [proposal.me, proposal.them]), isDemo: true });
+          if (proposal.source === "demo") saveDemoTrip(proposal.proposalId, { status: "accepted", viewerId: proposal.me.id, acceptedBy: [proposal.me.id, proposal.them.id], merged: proposal.merged, travelers: [proposal.me, proposal.them], itinerary: buildItinerary(proposal.me.break_id, proposal.merged, [proposal.me, proposal.them]), isDemo: true });
           else await decideFn({ data: { proposalId: proposal.proposalId, status: "accepted" } });
           navigate({ to: "/trip/$id", params: { id: proposal.proposalId } });
         })}
@@ -400,7 +398,6 @@ function MergeScreen({ proposal, busy, err, onBack, onAccept, onPass, onCounter 
         ))}
       </div>
 
-      <DestinationImage destination={merged.destination} />
       {proposal.source === "demo" && <p className="mt-3 text-xs text-muted-foreground">Local demonstration with a sample traveler. No real invitation or booking will be sent.</p>}
       <p className="mt-4 text-sm text-muted-foreground">Traveler chat unlocks after this plan is confirmed.</p>
       {countering ? (

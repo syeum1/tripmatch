@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { detailsSchema } from "./traveler";
-import { publicPlan, anonymousProfile, sampleProfiles } from "./public-plans";
+import { publicPlan, discoveryProfile, sampleProfiles } from "./public-plans";
 import { isMbti } from "./personality";
 import { buildItinerary, mergeRules, planOf, rankMatches } from "./matching";
 import type { MergedPlan, Plan, TripProfile } from "./trip-data";
@@ -67,7 +67,7 @@ export const getMatches = createServerFn({ method: "POST" })
     if (!me) throw new Error("Profile not found");
     const { data: pool } = await db.from("trip_profiles").select().eq("break_id", me.break_id).neq("id", me.id);
     const profile = { ...toProfile(me), ...(data.mbti !== undefined ? { mbti: data.mbti } : {}) };
-    return { me: profile, matches: rankMatches(profile, (pool ?? []).map(toProfile)).map((match) => ({ ...match, profile: anonymousProfile(match.profile) })) };
+    return { me: profile, matches: rankMatches(profile, (pool ?? []).map(toProfile)).map((match) => ({ ...match, profile: discoveryProfile(match.profile) })) };
   });
 
 export const proposeMerge = createServerFn({ method: "POST" })
@@ -80,8 +80,9 @@ export const proposeMerge = createServerFn({ method: "POST" })
     const me = rows?.find((r) => r.id === data.profileId);
     const them = rows?.find((r) => r.id === data.matchId);
     if (!me || !them) throw new Error("Profile not found");
-    const rules = mergeRules(anonymousProfile(toProfile(me)), anonymousProfile(toProfile(them)), data.override);
-    const ai = null; // Save the proposal immediately; AI must not hold up creating a plan.
+    const rules = mergeRules(discoveryProfile(toProfile(me)), discoveryProfile(toProfile(them)), data.override);
+    const { aiMerge } = await import("./ai-merge.server");
+    const ai = await aiMerge(discoveryProfile(toProfile(me)), discoveryProfile(toProfile(them)), rules, data.override);
     const merged = ai ?? rules;
     const { data: prop, error } = await db
       .from("proposals")
@@ -95,7 +96,7 @@ export const proposeMerge = createServerFn({ method: "POST" })
       .select()
       .single();
     if (error) throw new Error(error.message);
-    return { proposalId: prop.id, merged, source: prop.source, me: toProfile(me), them: anonymousProfile(toProfile(them)) };
+    return { proposalId: prop.id, merged, source: prop.source, me: toProfile(me), them: discoveryProfile(toProfile(them)) };
   });
 
 export const decide = createServerFn({ method: "POST" })
@@ -122,7 +123,7 @@ export const getItinerary = createServerFn({ method: "POST" })
     const mutuallyAccepted = prop.status === "accepted" && (sample || [prop.user_profile_id, prop.match_profile_id].every((id) => prop.accepted_by?.includes(id)));
     const travelers = [prop.user_profile_id, prop.match_profile_id].map((id) => {
       const profile = toProfile(rows!.find((r) => r.id === id)!);
-      return profile.id === viewerId || mutuallyAccepted ? profile : anonymousProfile(profile);
+      return profile.id === viewerId || mutuallyAccepted ? profile : discoveryProfile(profile);
     });
     const merged = prop.merged as unknown as MergedPlan;
     return { status: prop.status === "accepted" && !mutuallyAccepted ? "proposed" : prop.status, viewerId, acceptedBy: prop.accepted_by ?? [], merged, travelers, itinerary: buildItinerary(travelers[0]!.break_id, merged, travelers) };

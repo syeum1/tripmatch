@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BudgetFields } from "@/components/trip/BudgetFields";
 import { detailsSchema, mapUrl, moneyDraft, moneyValue } from "@/lib/traveler";
-import { anonymousProfile, publicPlan, sampleProfiles } from "@/lib/public-plans";
+import { discoveryProfile, publicPlan, sampleProfiles } from "@/lib/public-plans";
 vi.mock("@/components/trip/TripAssistant", () => ({ TripAssistant: () => null }));
 afterEach(cleanup);
 describe("budget entry", () => {
@@ -22,12 +22,13 @@ describe("budget entry", () => {
     expect(detailsSchema.safeParse({ year: "2nd year", bio: "" }).success).toBe(true);
   });
 });
-describe("anonymous discovery", () => {
+describe("first-name discovery", () => {
   const privateProfile = { ...sampleProfiles[0]!, email: "private@usc.edu", first_name: "Private Name", mbti: "INTJ" as const, details: detailsSchema.parse({ bio: "Personal bio", private_notes: "Secret note", year: "2nd year" }) };
-  it("never returns identity or private notes in a public plan or anonymous match", () => {
-    for (const value of [publicPlan(privateProfile), anonymousProfile(privateProfile)]) {
+  it("shows first names while withholding email and private profile fields", () => {
+    for (const value of [publicPlan(privateProfile), discoveryProfile(privateProfile)]) {
       const response = JSON.stringify(value);
-      for (const secret of ["private@usc.edu", "Private Name", "Personal bio", "Secret note", "INTJ", "2nd year"]) expect(response).not.toContain(secret);
+      expect(response).toContain("Private Name");
+      for (const secret of ["private@usc.edu", "Personal bio", "Secret note", "INTJ"]) expect(response).not.toContain(secret);
     }
     expect(publicPlan(privateProfile).score).toBeNull();
     expect(publicPlan(privateProfile, { ...privateProfile, id: "viewer", break_id: "winter" }).score).toBe(0);

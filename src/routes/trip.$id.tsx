@@ -1,4 +1,3 @@
-import { DestinationImage } from "@/components/trip/DestinationImage";
 import { readDemoTrip, type TripData } from "@/lib/local-demo";
 import { GroupPersonality } from "@/components/trip/Personality";
 import { TravelerChat } from "@/components/trip/TravelerChat";
@@ -52,7 +51,6 @@ function TripPage() {
   }
   return (
     <Screen step={data.isDemo ? "Demo plan confirmed" : matched ? "Matched" : "Awaiting mutual match"} assistantContext={JSON.stringify({ destination: merged.destination, start: merged.start_date, end: merged.end_date })}>
-      <DestinationImage destination={merged.destination} />
       {data.isDemo && <p role="status" className="mb-4 text-sm text-muted-foreground">Device-only demonstration with a sample traveler. No real person has joined this trip.</p>}
       {!matched && <section className="mb-4 rounded-xl border border-border bg-card p-4"><h2 className="font-bold">Both travelers must accept</h2><p className="mt-2 text-sm text-muted-foreground">Profiles, private notes and chat stay locked until both people accept this plan.</p>{data.status !== "passed" && data.viewerId && !data.acceptedBy.includes(data.viewerId) ? <button disabled={busy} onClick={() => void accept()} className="mt-3 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground">{busy ? "Saving…" : "Accept this plan"}</button> : <p className="mt-2 text-sm">{data.status === "passed" ? "This plan is closed." : "Your acceptance is saved. Waiting for the other traveler."}</p>}</section>}
       {err && <p role="alert" className="mb-3 text-sm text-destructive">{err}</p>}

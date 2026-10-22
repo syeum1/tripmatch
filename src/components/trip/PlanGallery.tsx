@@ -3,7 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { browsePlans } from "@/lib/trip.functions";
 import type { PublicPlan } from "@/lib/public-plans";
 import type { TripProfile } from "@/lib/trip-data";
-import { DestinationImage } from "./DestinationImage";
 import { mapUrl } from "@/lib/traveler";
 export function PlanGallery({ viewer, onJoin }: { viewer?: TripProfile | undefined; onJoin: (id: string, sample: boolean) => void }) {
   const browse = useServerFn(browsePlans);
@@ -22,7 +21,7 @@ export function PlanGallery({ viewer, onJoin }: { viewer?: TripProfile | undefin
   const filtered = plans.filter((plan) => plan.destinations.some((place) => place.toLowerCase().includes(search.trim().toLowerCase())));
   return <>
     <h1 className="text-3xl font-extrabold">Explore trips</h1>
-    <p className="mt-2 text-sm text-muted-foreground">See plans across all breaks, even if your current preferences differ. Traveler identities stay hidden until a confirmed match.</p>
+    <p className="mt-2 text-sm text-muted-foreground">See plans across all breaks, even if your current preferences differ. See who’s planning each trip. Emails and private notes stay private.</p>
     {local && <p role="status" className="mt-3 rounded-xl bg-secondary p-3 text-sm">Local preview: these are sample trips, not live classmates’ plans.</p>}
     {!viewer && <p className="mt-3 text-sm text-primary">Save your preferences to see your personal plan-fit scores.</p>}
     <label className="mt-4 block text-sm font-semibold">Find a destination<input className="mt-2 h-12 w-full rounded-xl border-2 border-border bg-card px-3" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search all trips" /></label>
@@ -30,8 +29,7 @@ export function PlanGallery({ viewer, onJoin }: { viewer?: TripProfile | undefin
     {error && <div role="alert" className="mt-4 text-sm text-destructive">{error}<button onClick={() => setRetry(retry + 1)} className="ml-3 underline">Retry</button></div>}
     {!loading && !error && !filtered.length && <p className="mt-4 text-sm text-muted-foreground">No plans found. Try a different destination.</p>}
     <div className="mt-5 space-y-5">{filtered.map((plan) => <article key={plan.id} className="trip-plan-card p-4">
-      <DestinationImage destination={plan.destinations[0] ?? "Trip"} />
-      <p className="text-xs text-muted-foreground">{plan.sample ? "Sample trip" : "Anonymous trip"} · {plan.breakId}</p>
+      <p className="text-xs text-muted-foreground">{plan.firstName} · {plan.year} · {plan.sample ? "Sample trip" : "Trip"} · {plan.breakId}</p>
       <h2 className="mt-1 text-xl font-bold">{plan.destinations.join(" / ")}</h2>
       <p className="mt-1 text-sm">{plan.start} – {plan.end}</p><p className="mt-1 text-sm">${plan.budgetMin}–${plan.budgetMax} per person</p>
       {plan.score !== null && <p className="mt-3 font-semibold text-primary">{Math.round(plan.score)}% plan fit</p>}

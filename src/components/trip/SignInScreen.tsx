@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { PrimaryButton, Screen } from "./ui";
-import { isUscEmail } from "@/lib/sign-in";
+import { isUscEmail, isTravelerName } from "@/lib/sign-in";
 
 type Props = {
+  name: string;
+  onNameChange: (name: string) => void;
   email: string;
   onEmailChange: (email: string) => void;
   onContinue: () => void;
@@ -12,13 +14,18 @@ type Props = {
   error?: string | null;
 };
 
-export function SignInScreen({ email, onEmailChange, onContinue, ssoEnabled, onSso, restoring = false, error }: Props) {
+export function SignInScreen({ name, onNameChange, email, onEmailChange, onContinue, ssoEnabled, onSso, restoring = false, error }: Props) {
   const [busy, setBusy] = useState(false);
   const [ssoError, setSsoError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const invalid = (submitted || email.length > 0) && !isUscEmail(email);
 
+  const nameInvalid = submitted && !isTravelerName(name);
+  const nameField = <div className="mb-5"><label htmlFor="traveler-name" className="mb-2 block text-sm font-semibold">First name</label><input id="traveler-name" name="given-name" autoComplete="given-name" maxLength={60} value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="e.g. Steven" aria-invalid={nameInvalid} aria-describedby={nameInvalid ? "name-error" : undefined} className="h-14 w-full rounded-xl border-2 border-border bg-background px-4 outline-none focus:border-primary focus:ring-2 focus:ring-ring/30" />{nameInvalid && <p id="name-error" role="alert" className="mt-2 text-sm text-destructive">Enter your first name.</p>}</div>;
+
   async function signIn() {
+    setSubmitted(true);
+    if (!isTravelerName(name)) return;
     setBusy(true);
     setSsoError(null);
     try { await onSso(); }
@@ -37,6 +44,7 @@ export function SignInScreen({ email, onEmailChange, onContinue, ssoEnabled, onS
           {ssoEnabled ? (
             <>
               <p className="mt-2 mb-6 text-sm text-muted-foreground">Continue with your USC account.</p>
+              {nameField}
               <PrimaryButton onClick={signIn} disabled={busy || restoring} aria-busy={busy || restoring}>
                 {restoring ? "Signing you in…" : busy ? "Connecting…" : "Sign in with USC"}
               </PrimaryButton>
@@ -45,8 +53,9 @@ export function SignInScreen({ email, onEmailChange, onContinue, ssoEnabled, onS
             <form className="mt-6" onSubmit={(event) => {
               event.preventDefault();
               setSubmitted(true);
-              if (!busy && isUscEmail(email)) onContinue();
+              if (!busy && isTravelerName(name) && isUscEmail(email)) onContinue();
             }} noValidate>
+              {nameField}
               <label htmlFor="usc-email" className="mb-2 block text-sm font-semibold">USC email</label>
               <input id="usc-email" name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false}
                 value={email} onChange={(event) => onEmailChange(event.target.value)} placeholder="you@usc.edu"

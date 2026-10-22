@@ -4,9 +4,14 @@ import { SignInScreen } from "@/components/trip/SignInScreen";
 
 vi.mock("@/components/trip/TripAssistant", () => ({ TripAssistant: () => null }));
 afterEach(cleanup);
-const defaults = { email: "", onEmailChange: vi.fn(), onContinue: vi.fn(), ssoEnabled: false, onSso: vi.fn() };
+const defaults = { name: "Steven", onNameChange: vi.fn(), email: "", onEmailChange: vi.fn(), onContinue: vi.fn(), ssoEnabled: false, onSso: vi.fn() };
 
 describe("Short sign-in", () => {
+  it("requires a name before continuing, without deriving it from the email", () => {
+    const next = vi.fn(); render(<SignInScreen {...defaults} name="   " email="student@usc.edu" onContinue={next} />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(next).not.toHaveBeenCalled(); expect(screen.getByRole("alert")).toHaveTextContent("Enter your first name");
+  });
   it("continues immediately with a USC email without a password or email code", () => {
     const next = vi.fn();
     const { container } = render(<SignInScreen {...defaults} email="student@usc.edu" onContinue={next} />);
